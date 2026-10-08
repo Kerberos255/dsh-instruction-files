@@ -34,7 +34,7 @@ function PluginPanel({ scope }) {
     void work(async () => {
       const saved = await scope.update({ ...editor.base.value, profiles: editor.draft }, editor.base.revision);
       const profiles = await scope.call('getProfiles', {});
-      if (alive.current) { setData(profiles); setEditor({ base: saved, draft: structuredClone(saved.value.profiles) }); setNote('已保存。默认模型和权限用于新会话；提示文件按下方自动更新设置读取。'); }
+      if (alive.current) { setData(profiles); setEditor({ base: saved, draft: structuredClone(saved.value.profiles) }); setNote('已保存。默认模型与权限仅用于新会话；指令文件按会话工作区和开关设置加载。'); }
     });
   };
   const input = (profile, index, key, label, help) => e('div', { className: 'dpc-field', key },
@@ -43,12 +43,12 @@ function PluginPanel({ scope }) {
       ...[['', '继承官方权限默认值'], ['workspace-write', '工作区写入 · 操作按原生审批'], ['read-only', '只读 · 操作按原生审批']].map(([value, text]) => e('option', { key: value, value }, text))) :
       e('input', { id: `dsh-role-${profile.preset}-${key}`, 'aria-label': `${profile.name} ${label}`, value: profile[key], disabled, onChange: event => change(index, key, event.target.value) })));
   return e('section', { className: 'dpc-page', 'aria-label': '角色与工作区', style: { marginBottom: 36 } },
-    e('h3', null, '角色与工作区'), e('p', null, '使用官方工作区、预设、会话与权限入口。新会话从角色自己的 AGENTS、SOUL、USER、MEMORY 读取规则。'),
+    e('h3', null, '角色与工作区'), e('p', null, '角色沿用 DSH 原生工作区、预设和会话机制，默认模型与权限仅对新会话生效。指令文件按当前会话的工作区读取，受上方开关控制，修改后下一次模型调用生效。'),
     e('form', { onSubmit: save }, ...editor.draft.map((profile, index) => {
       const status = data?.profiles.find(value => value.preset === profile.preset);
       return e('details', { key: profile.preset, className: 'dpc-advanced', open: true },
         e('summary', null, `${profile.name} · ${profile.preset}`),
-        input(profile, index, 'name', '角色名称', '用于界面标签；人设由工作区 SOUL.md 定义。'), input(profile, index, 'workspace', '工作区目录', '选择已有目录。更换目录保留原会话和文件，新会话使用新目录。'),
+        input(profile, index, 'name', '角色名称', '仅用于界面显示，不会自动写入系统提示词。'), input(profile, index, 'workspace', '工作区目录', '选择已有目录。更换目录保留原会话和文件，新会话使用新目录。'),
         e('div',{className:'dpc-field'},e('div',{className:'dpc-label'},e('label',null,'默认模型')),e('div',{className:'dpc-control'},e(ModelPicker,{scope,provider:profile.modelProvider,model:profile.model,disabled,label:profile.name+' 默认模型',onChange:selection=>change(index,{modelProvider:selection.provider,model:selection.model})}))),input(profile, index, 'permission', '默认权限'),
         e('p', null, status?.error || (status?.registered ? '工作区和预设已登记' : '等待原生工作区或预设登记')),
         e(DshButton, { type: 'button', disabled: disabled || dirty || external || !status?.registered,

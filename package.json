@@ -1,7 +1,7 @@
 {
   "name": "dsh-instruction-files",
-  "version": "0.2.4",
-  "description": "配置指令文件自动更新、角色的独立工作区和新会话默认模型与权限。",
+  "version": "0.2.12",
+  "description": "按工作区分别注入身份、性格、规则和记忆；可逐文件开关。",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -66,6 +66,6 @@
     "node": ">=24"
   },
   "scripts": {
-    "test": "node --test tests/memory-filter.test.mjs"
+    "test": "node --test tests/memory-filter.test.mjs tests/workspace-prompt.test.mjs"
   }
 }

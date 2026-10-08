@@ -1,5 +1,11 @@
 {
   "schemaVersion": 1,
-  "autoRefresh": true,
+  "workspacePromptEnabled": false,
+  "identityAsIdentity": false,
+  "soulEnabled": false,
+  "agentsEnabled": false,
+  "toolsEnabled": false,
+  "userEnabled": false,
+  "memoryEnabled": false,
   "profiles": []
 }

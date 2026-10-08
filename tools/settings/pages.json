@@ -3,13 +3,49 @@
     "rowId": "instruction-files-settings",
     "endpoint": "instructionFilesSettings",
     "title": "指令文件与角色",
-    "description": "配置指令文件自动更新、角色的独立工作区和新会话默认模型与权限。",
+    "description": "按工作区分别注入身份、性格、规则和记忆；可逐文件开关。",
     "fields": [
       {
-        "key": "autoRefresh",
-        "label": "指令文件自动更新",
+        "key": "workspacePromptEnabled",
+        "label": "工作区提示词增强",
         "type": "boolean",
-        "help": "每个模型步骤前检查工作区文件版本，修改后下一步读取；未变化时沿用缓存。"
+        "help": "总开关；关闭时保留 DSH 原生身份，不注入插件管理的 Markdown 区块。"
+      },
+      {
+        "key": "identityAsIdentity",
+        "label": "IDENTITY.md · harness:identity",
+        "type": "boolean",
+        "help": "替换 DSH 原生身份区块。"
+      },
+      {
+        "key": "soulEnabled",
+        "label": "SOUL.md · harness:soul",
+        "type": "boolean",
+        "help": "注入性格与表达风格。"
+      },
+      {
+        "key": "agentsEnabled",
+        "label": "AGENTS.md · harness:agent",
+        "type": "boolean",
+        "help": "注入工作区执行规则。"
+      },
+      {
+        "key": "toolsEnabled",
+        "label": "TOOLS.md · harness:tools",
+        "type": "boolean",
+        "help": "注入工具使用说明。"
+      },
+      {
+        "key": "userEnabled",
+        "label": "USER.md · harness:user",
+        "type": "boolean",
+        "help": "注入当前工作区的用户偏好说明。"
+      },
+      {
+        "key": "memoryEnabled",
+        "label": "MEMORY.md · harness:memory",
+        "type": "boolean",
+        "help": "注入允许访问的人工维护记忆。"
       }
     ]
   }

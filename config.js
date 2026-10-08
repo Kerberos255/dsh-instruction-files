@@ -2,7 +2,15 @@ import path from 'node:path';
 import { defineConfig } from './plugin-settings/remote-config.js';
 import { ConfigError } from './plugin-settings/file-config.js';
 
-const base = defineConfig({ autoRefresh: true });
+const base = defineConfig({
+  workspacePromptEnabled: false,
+  identityAsIdentity: false,
+  soulEnabled: false,
+  agentsEnabled: false,
+  toolsEnabled: false,
+  userEnabled: false,
+  memoryEnabled: false,
+});
 const permissions = new Set(['', 'read-only', 'workspace-write']);
 const keys = ['preset', 'name', 'workspace', 'modelProvider', 'model', 'permission'];
 export const schema = {
