@@ -1,0 +1,16 @@
+{
+  "dsh-instruction-files": {
+    "rowId": "instruction-files-settings",
+    "endpoint": "instructionFilesSettings",
+    "title": "指令文件与角色",
+    "description": "配置指令文件自动更新、角色的独立工作区和新会话默认模型与权限。",
+    "fields": [
+      {
+        "key": "autoRefresh",
+        "label": "指令文件自动更新",
+        "type": "boolean",
+        "help": "每个模型步骤前检查工作区文件版本，修改后下一步读取；未变化时沿用缓存。"
+      }
+    ]
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "name": "dsh-instruction-files",
+  "version": "0.2.4",
+  "description": "配置指令文件自动更新、角色的独立工作区和新会话默认模型与权限。",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./agent": "./agent.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "agent.js",
+    "workspace-prompt.js",
+    "memory-filter.js",
+    "client.js",
+    "config.js",
+    "plugin-settings/",
+    "cordis.patch.yml",
+    "README.md",
+    "config.example.json",
+    "locale/",
+    "profiles.js"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
+    }
+  },
+  "dependencies": {
+    "js-yaml": "4.1.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis-plugin-include": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-system-prompt": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-agent-instructions": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-home-paths": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-user-approval": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-agent-preset": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-agent-preset-registry": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-workspace": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.0-rc.2 || 0.2.1-alpha.1"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test tests/memory-filter.test.mjs"
+  }
+}
