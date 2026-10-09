@@ -21,6 +21,8 @@
     "plugin-settings/",
     "cordis.patch.yml",
     "README.md",
+    "README.zh-CN.md",
+    "SECURITY.md",
     "config.example.json",
     "locale/",
     "profiles.js"
