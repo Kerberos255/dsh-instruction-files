@@ -54,7 +54,7 @@ export class InstructionSettings extends PluginConfig {
             this.roles.set(profile.preset,{name:profile.name,dispose});
           }
           this.errors.delete(profile.preset);
-        } catch (error) { this.errors.set(profile.preset, error instanceof Error ? error.message : String(error)); }
+        } catch (error) { this.context.get('pluginDiagnostics')?.record('dsh-instruction-files','error','profile.register-failed',{code:error?.code,state:'failed'});this.errors.set(profile.preset, error instanceof Error ? error.message : String(error)); }
       }
     });
     this.tail = run.catch(() => {});
