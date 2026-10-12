@@ -47,7 +47,7 @@ const configChange=(value,key,next)=>{
   const [head,...tail]=key.split('.');
   return {...value,[head]:tail.length?configChange(value[head],tail.join('.'),next):next};
 };
-function ModelPicker({ scope, kind='chat', provider, model, disabled, label, onChange }) {
+function ModelPicker({ scope, kind='chat', provider, model, disabled, label, emptyLabel, onChange }) {
   const e=React.createElement, [catalog,setCatalog]=React.useState({groups:[]}), [error,setError]=React.useState('');
   React.useEffect(()=>{
     let active=true,sequence=0;
@@ -57,10 +57,25 @@ function ModelPicker({ scope, kind='chat', provider, model, disabled, label, onC
   const encode=(provider,model)=>JSON.stringify([provider,model]),value=encode(provider||'',model||'');
   const known=catalog.groups.some(group=>group.models.some(entry=>group.id===provider&&entry.id===model));
   return e('div',null,e('select',{'aria-label':label,value,disabled,onChange:event=>{const [provider,model]=JSON.parse(event.target.value);onChange({provider,model});}},
-    e('option',{value:encode('','')},kind==='embedding'?'词语检索（不使用向量模型）':'继承 DSH 默认模型'),
+    e('option',{value:encode('','')},emptyLabel || (kind==='embedding'?'词语检索（不使用向量模型）':'继承 DSH 默认模型')),
     provider&&model&&!known?e('option',{value},`${provider} / ${model}（当前配置）`):null,
     catalog.groups.map(group=>e('optgroup',{key:group.id,label:group.name||group.id},group.models.map(entry=>e('option',{key:entry.id,value:encode(group.id,entry.id)},entry.name||entry.id))))),
     error?e('small',{role:'status'},'模型目录暂不可用：'+error):kind==='embedding'&&!catalog.groups.length?e('small',null,'尚未注册向量模型。'):null);
+}
+function RolePicker({scope,value,disabled,label,onChange}) {
+  const e=React.createElement,[catalog,setCatalog]=React.useState({available:false,roles:[]}),[error,setError]=React.useState('');
+  React.useEffect(()=>{
+    let active=true,sequence=0;
+    const load=()=>{const current=++sequence;scope.call('roleCatalog',{}).then(result=>{if(active&&current===sequence){setCatalog(result);setError('');}}).catch(failure=>{if(active&&current===sequence)setError(failure.message);});};
+    load();window.addEventListener('focus',load);
+    return()=>{active=false;window.removeEventListener('focus',load);};
+  },[scope]);
+  const known=catalog.roles.some(role=>role.preset===value);
+  return e('div',null,e('select',{'aria-label':label,value,disabled,onChange:event=>onChange(event.target.value)},
+    e('option',{value:''},'自动关联预设与工作区（兼容原配置）'),
+    value&&!known?e('option',{value},value+'（当前角色不可用）'):null,
+    catalog.roles.map(role=>e('option',{key:role.preset,value:role.preset},role.name+' · '+(role.workspaceTitle||role.preset)))),
+    error?e('small',{role:'status'},'角色目录读取失败：'+error):!catalog.available?e('small',null,'指令文件与角色插件不可用；原路径配置仍可使用。'):null);
 }
 function FileConfigPage({ scope, title, description, fields, actionLabel, credentialApi, credentials, credentialTitle='凭证', credentialsFirst=false }) {
   const e = React.createElement, snapshot = useFileConfig(scope);
@@ -100,12 +115,18 @@ function FileConfigPage({ scope, title, description, fields, actionLabel, creden
     const value = configValue(editor.draft,spec.key), id = 'dsh-config-' + spec.key;
     const common = { id, disabled: disabled || spec.disabled, 'aria-label': spec.label };
     let input;
-    if (spec.type === 'readonly') input = e('input', { ...common, type: 'text', readOnly: true, value: snapshot.details?.[spec.detail] ?? '', placeholder: spec.placeholder });
+    if (spec.type === 'credential') return e('div',{className:'dpc-field dpc-credential',key:spec.key},
+      e('div',{className:'dpc-label'},e('span',null,spec.label),e('small',null,'独立保存到 DSH 凭证管理，不会写入渠道配置文件。')),
+      e('div',{className:'dpc-control'},credentialApi&&credentials&&snapshot.value
+        ?e(CredentialsPage,{api:credentialApi,refs:credentials(snapshot.value),writable:snapshot.writable,title:spec.label,inline:true})
+        :e('small',null,'凭证服务暂不可用')));
+    if (spec.type === 'readonly') input = e('div', { className: 'dpc-status', id }, snapshot.details?.[spec.detail] ?? spec.placeholder ?? '—');
     else if (spec.type === 'boolean') input = e(DshSwitch, { label: spec.label, disabled: common.disabled, checked: value, onChange: next => change(spec.key, next) });
     else if (spec.type === 'multiline') input = e('textarea', {...common,rows:5,value,onChange:event=>change(spec.key,event.target.value)});
     else if (spec.type === 'list') input = e('textarea', {...common, rows: Math.max(3,Math.min(8,value.length+1)), value:editor.listText?.[spec.key]??value.join('\n'),
       onChange:event=>{const text=event.target.value;setEditor(previous=>({...previous,draft:configChange(previous.draft,spec.key,text.split(/[\n,]/).map(item=>item.trim()).filter(Boolean)),listText:{...previous.listText,[spec.key]:text},error:'',errorCode:'',saved:false}));} });
-    else if (spec.type === 'model') input = e(ModelPicker,{scope,kind:spec.kind,provider:configValue(editor.draft,spec.providerKey),model:value,disabled:common.disabled,label:spec.label,onChange:selection=>setEditor(previous=>({...previous,draft:configChange(configChange(previous.draft,spec.providerKey,selection.provider),spec.key,selection.model),error:'',errorCode:'',saved:false}))});
+    else if (spec.type === 'role') input = e(RolePicker,{scope,value,disabled:common.disabled,label:spec.label,onChange:next=>change(spec.key,next)});
+    else if (spec.type === 'model') input = e(ModelPicker,{scope,kind:spec.kind,provider:configValue(editor.draft,spec.providerKey),model:value,emptyLabel:spec.emptyLabel,disabled:common.disabled,label:spec.label,onChange:selection=>setEditor(previous=>({...previous,draft:configChange(configChange(previous.draft,spec.providerKey,selection.provider),spec.key,selection.model),error:'',errorCode:'',saved:false}))});
     else if (spec.type === 'select') input = e('select', { ...common, value, onChange: event => change(spec.key, spec.numeric ? Number(event.target.value) : event.target.value) }, spec.options.map(([key, label]) => e('option', { key, value: key }, label)));
     else if (spec.type === 'order' || spec.type === 'providers') input = e('ol', { className: 'dpc-order' }, value.map((key, index) => e('li', { key },
       e('span', { className: 'dpc-rank', 'aria-hidden': true }, index + 1), e('span', { className: 'dpc-provider-name' }, spec.labels[key] || key),
@@ -136,9 +157,23 @@ function FileConfigPage({ scope, title, description, fields, actionLabel, creden
       if(!groups.length||groups.at(-1).title!==(spec.group||''))groups.push({title:spec.group||'',fields:[]});
       groups.at(-1).fields.push(spec);
     }
-    return groups.map((group,index)=>e('section',{className:'dpc-group',key:index},group.title?e('h4',null,group.title):null,group.fields.map(field)));
+    const items=specs=>{
+      const result=[];
+      for(let index=0;index<specs.length;){
+        const spec=specs[index];
+        if(!spec.fold){result.push(field(spec));index++;continue;}
+        let end=index+1;
+        while(end<specs.length&&specs[end].fold===spec.fold)end++;
+        result.push(e('details',{className:'dpc-fold',key:'fold-'+spec.key},
+          e('summary',null,spec.fold),...specs.slice(index,end).map(field)));
+        index=end;
+      }
+      return result;
+    };
+    return groups.map((group,index)=>e('section',{className:'dpc-group',key:index},group.title?e('h4',null,group.title):null,items(group.fields)));
   };
-  const credentialView=credentialApi&&credentials&&snapshot.value?e(CredentialsPage,{api:credentialApi,refs:credentials(snapshot.value),writable:snapshot.writable,title:credentialTitle,expanded:credentialsFirst}):null;
+  const embeddedCredentials=fields.some(spec=>spec.type==='credential');
+  const credentialView=!embeddedCredentials&&credentialApi&&credentials&&snapshot.value?e(CredentialsPage,{api:credentialApi,refs:credentials(snapshot.value),writable:snapshot.writable,title:credentialTitle,expanded:credentialsFirst}):null;
   const reloadNeeded = external || snapshot.requestError || editor.errorCode?.includes('conflict');
   return e('form', { className: 'dpc-page', 'aria-label': title, onSubmit: event => { event.preventDefault(); if (disabled || external || (!dirty && !snapshot.error)) return;
     void work(async () => { const result = await scope.update(editor.draft, editor.base.revision); replace(result); if (alive.current) setEditor(previous => ({ ...previous, saved: true })); });
@@ -157,7 +192,7 @@ function FileConfigPage({ scope, title, description, fields, actionLabel, creden
     credentialsFirst?null:credentialView,
   );
 }
-function CredentialsPage({ api, refs, writable, title, expanded=false }) {
+function CredentialsPage({ api, refs, writable, title, expanded=false, inline=false }) {
   const e = React.createElement;
   const [status, setStatus] = React.useState({}), [drafts, setDrafts] = React.useState({}), [busy, setBusy] = React.useState(false), [error, setError] = React.useState('');
   const alive = React.useRef(false), running = React.useRef(false);
@@ -183,9 +218,11 @@ function CredentialsPage({ api, refs, writable, title, expanded=false }) {
     } catch (reason) { if (alive.current) setError(reason.message); }
     finally { running.current = false; if (alive.current) setBusy(false); }
   };
-  return e(expanded?'section':'details', { className: 'dpc-credentials' }, e(expanded?'h4':'summary', null, title), e('fieldset', { disabled: busy || !writable },
-    e('p', null, '密钥单独保存到 DSH 凭证管理；已有密钥只显示配置状态。'),
-    Object.entries(refs).map(([ref, label]) => e('div', { className: 'dpc-field', key: ref }, e('label', null, label, ' · ', ref),
+  return e(inline?'div':expanded?'section':'details', { className: inline?'dpc-credentials-inline':'dpc-credentials' },
+    inline?null:e(expanded?'h4':'summary', null, title), e('fieldset', { disabled: busy || !writable },
+    inline?null:e('p', null, '密钥单独保存到 DSH 凭证管理；已有密钥只显示配置状态。'),
+    Object.entries(refs).map(([ref, label]) => e('div', { className: inline?'dpc-inline-secret':'dpc-field', key: ref },
+      inline?e('small',{role:'status'},status[ref]?.configured?'密钥已配置':'密钥未配置'):e('label', null, label, ' · ', ref),
       e('input', { type: 'password', autoComplete: 'new-password', 'aria-label': label + ' 密钥', value: drafts[ref] || '', placeholder: status[ref]?.configured ? '已配置；留空保持' : '未配置',
         onChange: event => setDrafts(previous => ({ ...previous, [ref]: event.target.value })) }),
       e('div', { className: 'dpc-actions' }, e(DshButton, { type: 'button', variant: 'outline', disabled: !drafts[ref], onClick: () => void save(ref, false) }, '保存密钥'),
@@ -204,9 +241,13 @@ function installConfigPage(ctx, options) {
       .dpc-page p,.dpc-page small{line-height:1.65;color:var(--dsw-alias-label-secondary)}
       .dpc-page [role=alert]{color:var(--dsw-alias-state-error-primary,#d64545)}
       .dpc-group+.dpc-group{margin-top:28px}.dpc-group h4{margin:0 0 8px;font-size:14px;font-weight:600}
+      .dpc-fold{margin:12px 0 0;padding:12px 16px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px}
+      .dpc-fold>summary{font-size:13px;font-weight:500;color:var(--dsw-alias-label-secondary)}
+      .dpc-fold[open]>summary{margin-bottom:8px}.dpc-fold .dpc-field:last-child{border-bottom:0}
       .dpc-field{display:grid;grid-template-columns:minmax(180px,1fr) minmax(160px,280px);gap:24px;padding:18px 0;border-bottom:1px solid var(--dsw-alias-border-l2);align-items:center}
       .dpc-label label{line-height:22px;font-weight:500}.dpc-label small{display:block;margin-top:4px;font-size:12px}
       .dpc-control{min-width:0}.dpc-boolean .dpc-control{justify-self:end}
+      .dpc-status{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-tertiary);word-break:break-word;line-height:1.6}
       .dpc-field input:not([type=checkbox]),.dpc-field select,.dpc-field textarea{box-sizing:border-box;width:100%;padding:9px 12px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:inherit;font:inherit}.dpc-field textarea{resize:vertical;line-height:1.6}
       .dpc-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:24px}
       .dpc-order{margin:0;padding:0;list-style:none;display:grid;gap:4px}.dpc-order li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;background:var(--dsw-alias-bg-layer-2)}
@@ -217,6 +258,7 @@ function installConfigPage(ctx, options) {
       .dpc-credentials:first-child{border-top:0;margin-top:0;padding-top:0;margin-bottom:28px}.dpc-credentials h4{margin:0;font-size:14px;font-weight:600}
       .dpc-advanced{margin-top:28px;padding:18px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px}.dpc-advanced>summary{font-weight:500}.dpc-advanced[open]>summary{margin-bottom:20px}
       .dpc-credentials .dpc-field{grid-template-columns:140px minmax(0,1fr) auto;gap:14px}.dpc-credentials .dpc-actions{margin:0}
+      .dpc-credentials-inline fieldset{border:0;padding:0;margin:0;min-width:0}.dpc-inline-secret{display:grid;gap:8px}.dpc-inline-secret .dpc-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0}.dpc-inline-secret .dpc-actions button{font-size:12px}
       .dpc-page :is(select,input,textarea):focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#4d6bfe);outline-offset:3px}
       [data-plugin-detail="${options.packageName}"] [data-plugin-rows]:has(>ul>[data-plugin-row]:only-child):not(:has([data-state=failed],[data-state=off])){display:none}
       @media(max-width:620px){.dpc-field,.dpc-credentials .dpc-field{grid-template-columns:1fr;gap:10px}.dpc-boolean{grid-template-columns:1fr auto;gap:20px}}

@@ -1,6 +1,6 @@
 {
   "name": "dsh-instruction-files",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "description": "按工作区分别注入身份、性格、规则和记忆；可逐文件开关。",
   "type": "module",
   "main": "index.js",
