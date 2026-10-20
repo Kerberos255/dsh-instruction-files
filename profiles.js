@@ -7,6 +7,7 @@ import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy';
 import { setApprovalPolicy } from '@deepseek-ai/dsh-user-approval';
 import { PluginConfig } from './plugin-settings/remote-config.js';
 import { schema } from './config.js';
+import { instructionSummaryReport } from './instruction-summary.js';
 
 const canonical = directory => {
   if (!fs.statSync(directory).isDirectory()) throw new Error('工作区路径需要指向已有目录');
@@ -18,7 +19,10 @@ const sameModel = (a, b) => a?.provider === b?.provider && a?.model === b?.model
 /** Native workspaces, presets, model intent and permissions remain their own source of truth. */
 export class InstructionSettings extends PluginConfig {
   constructor(ctx, legacy = {}) {
-    super(ctx, { service: 'instructionFilesSettings', packageName: 'dsh-instruction-files', schema }, legacy);
+    super(ctx, {
+      service: 'instructionFilesSettings', packageName: 'dsh-instruction-files', schema,
+      details: () => ({ instructionSummary: instructionSummaryReport() }),
+    }, legacy);
     this.context = ctx; this.workspaceScope = null; this.tail = Promise.resolve(); this.errors = new Map(); this.defaults = new WeakMap(); this.roles = new Map();
     for (const initialize of initializers) initialize.call(this);
     this.configFile.subscribe(() => this.registerLater());
@@ -102,6 +106,10 @@ export class InstructionSettings extends PluginConfig {
       return { ...config, ...snapshot };
     }, { prepend: true });
   }
+  /** Injection summary for the settings page: the newest assembly per workspace. */
+  getInstructionSummary() {
+    return { enabled: this.configFile.value.workspacePromptEnabled === true, entries: instructionSummaryReport() };
+  }
   async getProfiles() {
     await this.registerLater();
     await this.tail;
@@ -133,6 +141,6 @@ export class InstructionSettings extends PluginConfig {
   }
 }
 const initializers = [];
-for (const name of ['getProfiles', 'createProfileSession']) Remote(InstructionSettings.prototype[name], {
+for (const name of ['getInstructionSummary', 'getProfiles', 'createProfileSession']) Remote(InstructionSettings.prototype[name], {
   kind: 'method', name, static: false, private: false, addInitializer: initialize => initializers.push(initialize),
 });

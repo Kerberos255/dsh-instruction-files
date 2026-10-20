@@ -1,6 +1,6 @@
 {
   "name": "dsh-instruction-files",
-  "version": "0.2.15",
+  "version": "0.2.19",
   "description": "按工作区分别注入身份、性格、规则和记忆；可逐文件开关。",
   "type": "module",
   "main": "index.js",
@@ -15,6 +15,7 @@
     "index.js",
     "agent.js",
     "workspace-prompt.js",
+    "instruction-summary.js",
     "memory-filter.js",
     "client.js",
     "config.js",
@@ -48,10 +49,10 @@
     "@deepseek-ai/dsh-system-prompt": "0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-alpha.1 || >=0.2.1",
     "@deepseek-ai/dsh-agent-instructions": "0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-alpha.1 || >=0.2.1",
     "@deepseek-ai/dsh-home-paths": "0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-alpha.1 || >=0.2.1",
-    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-alpha.1 || >=0.2.1",
-    "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-alpha.1 || >=0.2.1",
-    "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-alpha.1 || >=0.2.1",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-alpha.1 || >=0.2.1",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.0-rc.2 || 0.2.1-alpha.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2 || 0.2.1-alpha.1",
     "@deepseek-ai/dsh-sandbox-policy": "0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-alpha.1 || >=0.2.1",
     "@deepseek-ai/dsh-user-approval": "0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-alpha.1 || >=0.2.1",
     "@deepseek-ai/dsh-agent-preset": "0.2.0-rc.2 || 0.2.1-rc.2 || 0.2.1-alpha.1 || >=0.2.1",
@@ -69,7 +70,7 @@
     "dsh": ">=0.2.0-rc.2"
   },
   "scripts": {
-    "test": "node --test tests/memory-filter.test.mjs tests/workspace-prompt.test.mjs"
+    "test": "node --test tests/memory-filter.test.mjs tests/workspace-prompt.test.mjs tests/summary.test.mjs tests/summary-integration.test.mjs"
   },
   "dshCompatibility": {
     "testedRuntime": "0.2.1-rc.2",

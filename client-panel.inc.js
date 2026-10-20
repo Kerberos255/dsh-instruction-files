@@ -1,6 +1,7 @@
 function PluginPanel({ scope }) {
   const e = React.createElement, snapshot = useFileConfig(scope);
   const [data, setData] = React.useState(null), [editor, setEditor] = React.useState(null), [busy, setBusy] = React.useState(false), [note, setNote] = React.useState(''), [error, setError] = React.useState('');
+  const [summary, setSummary] = React.useState(null);
   const alive = React.useRef(false), lock = React.useRef(false), serial = React.useRef(0);
   React.useEffect(() => {
     alive.current = true;
@@ -15,6 +16,7 @@ function PluginPanel({ scope }) {
       setEditor(previous => !previous || JSON.stringify(previous.draft) === JSON.stringify(previous.base.value.profiles)
         ? { base: result, draft: structuredClone(result.value.profiles) } : previous);
     }).catch(failure => { if (alive.current && sequence === serial.current) setError(failure.message); });
+    scope.call('getInstructionSummary', {}).then(result => { if (alive.current) setSummary(result); }).catch(() => {});
   }, [scope, snapshot.revision, snapshot.status]);
   const work = async action => {
     if (lock.current) return;
@@ -43,6 +45,23 @@ function PluginPanel({ scope }) {
       ...[['', '继承官方权限默认值'], ['workspace-write', '工作区写入 · 操作按原生审批'], ['read-only', '只读 · 操作按原生审批']].map(([value, text]) => e('option', { key: value, value }, text))) :
       e('input', { id: `dsh-role-${profile.preset}-${key}`, 'aria-label': `${profile.name} ${label}`, value: profile[key], disabled, onChange: event => change(index, key, event.target.value) })));
   return e('section', { className: 'dpc-page', 'aria-label': '角色与工作区', style: { marginBottom: 36 } },
+    e('section', { 'aria-label': '指令注入摘要', style: { marginBottom: 36 } },
+      e('h3', null, '指令注入摘要'),
+      e('p', null, summary?.enabled === false
+        ? '总开关已关闭，当前不注入任何工作区 Markdown。'
+        : '最近一次装配各工作区实际注入的指令文件与字节数（按注入内容计，去掉尾部空白）；只检查已开启的项，未开启的文件缺失不算问题。只记录文件名和大小，不含文件内容。'),
+      !summary ? e('p', null, '读取中…') : summary.entries.length === 0
+        ? e('p', null, '还没有装配记录：打开一个会话并发送一次消息后即可看到。')
+        : summary.entries.map(entry => e('details', { key: entry.cwd, className: 'dpc-advanced', open: true },
+          e('summary', null, `${entry.cwd} · 注入 ${entry.files.length} 个文件 · ${entry.used} B / ${entry.budget} B`),
+          entry.files.length ? e('ul', null, ...entry.files.map(file => e('li', { key: file.name }, `${file.name} → ${file.section} · ${file.bytes} B`))) : e('p', null, '没有注入任何受管文件。'),
+          entry.identity ? e('p', null, `IDENTITY.md：${entry.identity.injected ? '已注入' : '未注入（' + entry.identity.reason + '）'} · ${entry.identity.bytes} B`) : e('p', null, 'IDENTITY.md：未找到。'),
+          entry.projectBytes ? e('p', null, `项目子目录文件：${entry.projectBytes} B`) : null,
+          entry.skipped.length ? e('p', { role: 'alert' }, '跳过：' + entry.skipped.map(file => `${file.name}（${file.reason}，${file.bytes} B）`).join('、')) : null,
+          entry.missing.length ? e('p', { role: 'alert' }, '缺失（已开启但文件不存在）：' + entry.missing.join('、')) : null,
+          entry.optionalMissing?.length ? e('p', null, '可选文件缺失（不影响注入）：' + entry.optionalMissing.join('、')) : null,
+          e('p', null, '最近一次装配：' + new Date(entry.at).toLocaleString() + (entry.preset ? ' · 预设 ' + entry.preset : '')),
+        ))),
     e('h3', null, '角色与工作区'), e('p', null, '角色沿用 DSH 原生工作区、预设和会话机制，默认模型与权限仅对新会话生效。指令文件按当前会话的工作区读取，受上方开关控制，修改后下一次模型调用生效。'),
     e('form', { onSubmit: save }, ...editor.draft.map((profile, index) => {
       const status = data?.profiles.find(value => value.preset === profile.preset);

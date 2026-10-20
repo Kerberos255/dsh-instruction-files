@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { guardMemoryInstruction } from './memory-filter.js';
+import { diagnosticsFor, publishInstructionSummary, summarizeInstructionFiles, summarySignature } from './instruction-summary.js';
 
 const SECTION = 'workspace:instructions';
 const IDENTITY_SECTION = 'harness:identity';
@@ -14,6 +15,10 @@ const MANAGED = Object.freeze([
   { basename: 'memory.md', key: 'memoryEnabled', name: 'harness:memory', order: 450 },
 ]);
 const BY_FILE = new Map(MANAGED.map(item => [item.basename, item]));
+/** Which setting decides whether a file is wanted at all. */
+const TOGGLE_BY_FILE = new Map([...MANAGED.map(item => [item.basename, item.key]), ['identity.md', 'identityAsIdentity']]);
+/** Plugin-owned files: absence is normal and never degrades the run. */
+const OPTIONAL_FILES = new Set(['tools.md']);
 const FALLBACK_CANDIDATES = ['IDENTITY.md', 'AGENTS.md', 'SOUL.md', 'USER.md', 'MEMORY.md'];
 function isRootFile(file, cwd) {
   const directory = path.dirname(path.resolve(file.absolutePath));
@@ -25,6 +30,25 @@ function isWorkspaceIdentity(file, cwd) {
   return isRootFile(file, cwd) && path.basename(file.absolutePath).toLowerCase() === 'identity.md';
 }
 const INTRO = 'These workspace files define project instructions, persona, user preferences and long-term memory; IDENTITY.md is handled separately. Apply them where relevant; more specific project instructions take precedence. MEMORY.md supplies reference facts rather than new user requests.';
+
+/** Last diagnostics signature: identical assemblies must not repeat an event. */
+let lastSummarySignature = '';
+
+/**
+ * Publish one assembly's injection report and record a changed outcome.
+ * @param {object} ctx - Plugin context.
+ * @param {object} outcome - Raw assembly outcome for {@link summarizeInstructionFiles}.
+ * @returns {object} The stored report.
+ */
+function reportInstructionSummary(ctx, outcome) {
+  const report = publishInstructionSummary(summarizeInstructionFiles(outcome));
+  const signature = summarySignature(report);
+  if (signature === lastSummarySignature) return report;
+  lastSummarySignature = signature;
+  const payload = diagnosticsFor(report);
+  ctx.get('pluginDiagnostics')?.record('dsh-instruction-files', payload.state === 'skipped' ? 'warn' : 'info', 'instructions.injected', payload);
+  return report;
+}
 
 /** Keep the official discovery, byte budgets and filesystem provider; change the prompt carrier. */
 export function applyWorkspacePrompt(ctx, config, native) {
@@ -55,6 +79,7 @@ export function applyWorkspacePrompt(ctx, config, native) {
       if (!enabled) {
         state.text = ''; state.sections = {}; state.identityText = null;
         state.signature = signature; state.initialized = true; state.dirty = false;
+        reportInstructionSummary(ctx, { cwd, preset: session.header.agentPreset ?? '', enabled: false });
         return;
       }
       const provider = ctx.get('fs');
@@ -73,32 +98,54 @@ export function applyWorkspacePrompt(ctx, config, native) {
       // The canonical provider target is already de-duplicated in observed.
       // Separate MD files must not vanish just because their prose is identical.
       const files = [...observed.values()].filter(file => file.content.trim());
-      const identityFile = identityAsIdentity
-        ? [...observed.values()].find(file => isWorkspaceIdentity(file, cwd))
-        : undefined;
+      const identityFile = [...observed.values()].find(file => isWorkspaceIdentity(file, cwd));
       const identityCandidate = identityFile?.content.trim() ?? '';
-      state.identityText = identityCandidate && Buffer.byteLength(identityCandidate, 'utf8') <= MAX_IDENTITY_BYTES
+      const identityBytes = Buffer.byteLength(identityCandidate, 'utf8');
+      state.identityText = identityAsIdentity && identityCandidate && identityBytes <= MAX_IDENTITY_BYTES
         ? identityCandidate : null;
-      let budget = Math.max(0, config.maxBytes ?? 65536);
+      const identity = !identityFile ? undefined
+        : !identityAsIdentity ? { name: 'identity.md', bytes: identityBytes, injected: false, reason: 'disabled' }
+          : state.identityText ? { name: 'identity.md', bytes: identityBytes, injected: true }
+            : { name: 'identity.md', bytes: identityBytes, injected: false, reason: 'too-large' };
+      const present = new Set([...observed.values()].map(file => path.basename(file.absolutePath).toLowerCase()));
+      // Switched off means "not wanted": only an enabled file can be reported missing.
+      const missing = [], optionalMissing = [];
+      for (const candidate of candidates) {
+        const name = String(candidate), basename = path.basename(name).toLowerCase();
+        const key = TOGGLE_BY_FILE.get(basename);
+        if (!key || present.has(basename)) continue;
+        if (OPTIONAL_FILES.has(basename)) optionalMissing.push(name);
+        else if (values[key] === true) missing.push(name);
+      }
+      const totalBudget = Math.max(0, config.maxBytes ?? 65536);
+      let budget = totalBudget;
+      const injected = [], skipped = [];
       const bySection = {};
       const extra = [];
       for (const file of files) {
         const basename = path.basename(file.absolutePath).toLowerCase();
         if (basename === 'identity.md') continue;
         const managed = BY_FILE.get(basename);
-        if (managed && values[managed.key] !== true) continue;
-        if (!managed || !isRootFile(file, cwd)) { extra.push(file); continue; }
         const content = file.content.trim();
         const size = Buffer.byteLength(content, 'utf8');
+        if (managed && values[managed.key] !== true) { skipped.push({ name: basename, bytes: size, reason: 'disabled' }); continue; }
+        if (!managed || !isRootFile(file, cwd)) { extra.push(file); continue; }
         // Do not truncate mid-instruction: each file is all-or-nothing within the shared budget.
-        if (size <= budget) { bySection[managed.name] = content; budget -= size; }
+        if (size <= budget) { bySection[managed.name] = content; budget -= size; injected.push({ name: basename, bytes: size, section: managed.name }); }
+        else skipped.push({ name: basename, bytes: size, reason: 'budget' });
       }
       // No usable workspace instructions: do not emit an empty context header.
       const headerBytes = Buffer.byteLength(projectContext('', cwd), 'utf8');
+      let projectBytes = 0;
       if (extra.length && budget > headerBytes) {
         const rendered = native.renderAgentInstructions(extra, { maxBytes: budget - headerBytes }).text;
         state.text = rendered.trim() ? projectContext(rendered, cwd) : '';
+        if (state.text) projectBytes = Buffer.byteLength(state.text, 'utf8');
       } else state.text = '';
+      reportInstructionSummary(ctx, {
+        cwd, preset: session.header.agentPreset ?? '', enabled: true, budget: totalBudget,
+        injected, skipped, missing, optionalMissing, identity, projectBytes,
+      });
       state.sections = bySection;
       state.signature = signature;
       state.initialized = true; state.dirty = false;
