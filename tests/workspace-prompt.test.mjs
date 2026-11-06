@@ -8,7 +8,7 @@ import { applyWorkspacePrompt } from '../workspace-prompt.js';
 const FILES = ['IDENTITY.md', 'AGENTS.md', 'SOUL.md', 'TOOLS.md', 'USER.md', 'MEMORY.md'];
 const SETTINGS = ['workspacePromptEnabled', 'identityAsIdentity', 'soulEnabled', 'agentsEnabled', 'toolsEnabled', 'userEnabled', 'memoryEnabled'];
 
-function harness(values = {}, { origin = 'desktop', maxBytes = 65536 } = {}) {
+function harness(values = {}, { origin = 'desktop', maxBytes = 65536, groupMemory = false } = {}) {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-instructions-public-'));
   const state = { ...Object.fromEntries(SETTINGS.map(k => [k, true])), ...values };
   const session = { id: 'test-session', header: { id: 'test-session', cwd, origin } };
@@ -50,6 +50,7 @@ function harness(values = {}, { origin = 'desktop', maxBytes = 65536 } = {}) {
     get(name) {
       if (name === 'instructionFilesSettings') return { configFile: { value: state, closed: false } };
       if (name === 'fs') return provider;
+      if (name === 'channelCore' && groupMemory) return {sharedGroupMemorySession:id=>id==='test-session'};
       return undefined;
     },
   };
@@ -215,4 +216,14 @@ test('public settings expose only enabled sections; autoRefresh has been removed
   for (const field of fields) assert.equal(field.help, expectedHelp[field.key]);
   assert(!JSON.stringify(pages).includes('autoRefresh'));
   assert(!JSON.stringify(JSON.parse(fs.readFileSync(new URL('../config.example.json', import.meta.url)))).includes('autoRefresh'));
+});
+
+test('bound group session injects its workspace MEMORY.md without duplicate content',async()=>{
+ const h=harness({}, {origin:'discord',groupMemory:true});
+ try{
+  h.write('MEMORY.md','GROUP SHARED REFERENCE');
+  const a=await h.assemble();
+  assert.equal(section(a,'harness:memory'),'GROUP SHARED REFERENCE');
+  assert.equal(count(a,'GROUP SHARED REFERENCE'),1);
+ }finally{h.close();}
 });

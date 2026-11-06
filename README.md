@@ -41,7 +41,7 @@ workspace/
   MEMORY.md
 ```
 
-`IDENTITY.md` controls identity; `SOUL.md` holds behavior/style preferences. `MEMORY.md` is sensitive: in private channels, access must pass owner verification and the plugin's memory boundary. Changing files does not retroactively rewrite a running model request.
+`IDENTITY.md` controls identity; `SOUL.md` holds behavior/style preferences. `MEMORY.md` is sensitive: verified owner DMs and durably bound Feishu/Discord groups and threads may load the same workspace memory. Other private DMs remain isolated, and group members can potentially obtain memory content in bot replies. Managed facts are de-duplicated with Dream's automatic recall. Changing files does not retroactively rewrite a running model request.
 
 ## Notes and tests
 

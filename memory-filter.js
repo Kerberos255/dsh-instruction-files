@@ -31,16 +31,22 @@ export function isChannelSession(ctx,session){
       db=new DatabaseSync(filename,{readOnly:true});owned=true;
     }
     return Boolean(db.prepare('SELECT 1 FROM bindings WHERE session_id=? LIMIT 1').get(sessionId)
-      ||db.prepare('SELECT 1 FROM receipts WHERE session_id=? LIMIT 1').get(sessionId));
+      ||db.prepare('SELECT 1 FROM receipts WHERE session_id=? LIMIT 1').get(sessionId)
+      ||(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='archived_dm_sessions'").get()
+        &&db.prepare('SELECT 1 FROM archived_dm_sessions WHERE session_id=? LIMIT 1').get(sessionId)));
   }catch{ return true; }
   finally{if(owned)db?.close();}
 }
 export function guardMemoryInstruction(ctx,session,filename,content){
   if(path.win32.basename(String(filename??'')).toLowerCase()!=='memory.md' && path.posix.basename(String(filename??'')).toLowerCase()!=='memory.md')return content;
-  // Shared channel workspaces must not inherit private personal memories.
+  // Only owner DMs and Core-proven group/thread sessions inherit shared memory.
+  // Do not trust a session's origin header or shared workspace as permission.
   if(isChannelSession(ctx,session)){
-    const memory=ctx.get?.('memoryDreaming'),config=memory?.configFile?.value;
-    if(!config?.ownerIdentityId||!ctx.get?.('channelCore')?.trustedMemorySession?.(session.id??session.header?.id,config.ownerIdentityId))return '';
+    const config=ctx.get?.('memoryDreaming')?.configFile?.value;
+    const core=ctx.get?.('channelCore'),id=session.id??session.header?.id;
+    const group=core?.sharedGroupMemorySession?.(id)===true;
+    const owner=!!config?.ownerIdentityId&&core?.trustedMemorySession?.(id,config.ownerIdentityId)===true;
+    if(!group&&!owner)return '';
   }
   const service=ctx.get?.('memoryDreaming');
   if(service?.configFile?.value?.enabled&&service.configFile.value.recall)

@@ -13,24 +13,29 @@ test('local instructions retain manual prose while managed facts are delegated t
  assert(result.includes('手写的项目规则'));assert(result.includes('手写的其他内容'));assert(!result.includes('已发布事实'));
  assert.equal(guardMemoryInstruction(ctx,{id:'desktop',header:{}},'AGENTS.md',content),content);
 });
-test('only verified owner private channel can inherit manual memory instructions',()=>{
+test('verified owner DMs and proven groups inherit manual memory, strangers cannot',()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dsh-memory-instructions-'));
  fs.mkdirSync(path.join(dir,'channel-core'));
  const db=new DatabaseSync(path.join(dir,'channel-core','state.sqlite'));
  db.exec('CREATE TABLE bindings(session_id TEXT);CREATE TABLE receipts(session_id TEXT)');
- db.prepare('INSERT INTO bindings VALUES(?)').run('dm-owner');db.prepare('INSERT INTO bindings VALUES(?)').run('dm-other');
+ db.prepare('INSERT INTO bindings VALUES(?)').run('dm-owner');db.prepare('INSERT INTO bindings VALUES(?)').run('dm-other');db.prepare('INSERT INTO bindings VALUES(?)').run('group');
  db.close();
  try{
   const memory={configFile:{value:{enabled:true,recall:true,ownerIdentityId:'owner'}}};
-  const core={trustedMemorySession:(id,owner)=>id==='dm-owner'&&owner==='owner'};
+  const core={trustedMemorySession:(id,owner)=>id==='dm-owner'&&owner==='owner',sharedGroupMemorySession:id=>id==='group'};
   const ctx={get:name=>name==='memoryDreaming'?memory:name==='channelCore'?core:null,dshHomePath:(...p)=>path.join(dir,...p)};
   const owner=guardMemoryInstruction(ctx,{id:'dm-owner',header:{}},'MEMORY.md',content);
   assert(owner.includes('手写的项目规则'));assert(!owner.includes('已发布事实'));
   assert.equal(guardMemoryInstruction(ctx,{id:'dm-other',header:{}},'MEMORY.md',content),'');
+  const group=guardMemoryInstruction(ctx,{id:'group',header:{origin:'feishu'}},'MEMORY.md',content);
+  assert(group.includes('手写的项目规则'));
+  assert(!group.includes('已发布事实'));
+  assert.equal(guardMemoryInstruction(ctx,{id:'dm-other',header:{origin:'feishu'}},'MEMORY.md',content),'');
   assert.equal(guardMemoryInstruction(ctx,{id:'unlinked',header:{origin:'discord'}},'MEMORY.md',content),'');
   assert.equal(guardMemoryInstruction(ctx,{id:'dm-owner',header:{origin:'discord'}},'MEMORY.md',content),owner);
   memory.configFile.value.ownerIdentityId='';
   assert.equal(guardMemoryInstruction(ctx,{id:'dm-owner',header:{}},'MEMORY.md',content),'');
+  assert(guardMemoryInstruction(ctx,{id:'group',header:{origin:'feishu'}},'MEMORY.md',content).includes('手写的项目规则'));
  }finally{fs.rmSync(dir,{force:true,recursive:true});}
 });
 test('broken managed block never leaks the rest of a private fact',()=>{
