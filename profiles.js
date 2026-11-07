@@ -91,6 +91,13 @@ export class InstructionSettings extends PluginConfig {
   bridge(agent) {
     const selected = this.defaults.get(agent.session);
     if (!selected) return;
+    // New hosts own model selection before step admission; never overwrite
+    // an explicit user choice with a workspace default during a request.
+    if (typeof agent.model?.select === 'function') {
+      if (!agent.session.requestHeader() && !agent.model.current?.()) agent.model.select(selected);
+      return;
+    }
+    // Keep the legacy request bridge only on hosts without Agent.model.
     let assembled;
     agent.ctx.on('system-prompt/assemble', async (_value, context, next) => {
       const state = this.context.get('sessionProjections')?.stateOf(agent.session, 'modelSelection');
