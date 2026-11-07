@@ -22,7 +22,7 @@
     "plugin-settings/",
     "cordis.patch.yml",
     "README.md",
-    "README.zh-CN.md",
+    "README.en.md",
     "SECURITY.md",
     "config.example.json",
     "locale/",

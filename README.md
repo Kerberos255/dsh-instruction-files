@@ -1,56 +1,50 @@
-# Instruction Files & Agent Profiles for DeepSeek Harness
+# DSH 指令文件与角色
 
-[简体中文](README.zh-CN.md) · [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) · [Security](SECURITY.md)
+[English](README.en.md) · [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) · [安全说明](SECURITY.md)
 
-Manage **workspace instructions, agent identities, and per-profile defaults** in DSH without replacing the host's native agent, permissions, or session history.
+在 DSH 中管理**工作区提示词、Agent 身份、角色预设及新会话默认模型/权限**，不用替换官方 Agent 或重新实现会话系统。
 
-## Features
+## 主要功能
 
-- Opt-in Markdown prompt sections: `IDENTITY.md`, `SOUL.md`, `AGENTS.md`, `TOOLS.md`, `USER.md`, and `MEMORY.md`.
-- Optional replacement of the native identity section with `IDENTITY.md`; other named prompt sections are **plugin-defined**, not native DSH section names.
-- Reloads changed workspace instructions on the next model step while avoiding duplicate injection.
-- Manages custom agent profiles with workspace, model and permission defaults for **new** sessions.
-- Cooperates with [Dream & Memory](https://github.com/Kerberos255/dsh-memory-dreaming) and [Channel Core](https://github.com/Kerberos255/dsh-channel-core) to avoid untrusted private memory injection.
+- 分别管理 `IDENTITY.md`、`SOUL.md`、`AGENTS.md`、`TOOLS.md`、`USER.md`、`MEMORY.md`。
+- 可单独开启工作区提示词和各段落；`IDENTITY.md` 可选替换原生身份，其他 `harness:...` 为插件自定义区块，**不是 DSH 官方内置区块**。
+- Markdown 修改后在下一次模型步骤热更新，不重复注入；不修改原生工具定义与权限。
+- 角色可以指定工作区、新会话默认模型及权限，老会话不跟随修改。
+- 与 Dream、Channel Core 协作，限制私聊记忆来源和重复注入。
 
-## Install
+## 安装与配置
 
-Requires a compatible DSH host; check [package.json](package.json) for runtime and peer dependencies.
+环境和依赖参考 [package.json](package.json)：
 
 ```sh
 dsh plugin --profile desktop add github:Kerberos255/dsh-instruction-files
 ```
 
-Replace the example profile with yours; restart after installation or code updates.
+在「设置 → 插件 → 指令文件与角色」开启总开关（默认关闭），再单独开启需要的文件。首次安装或更新插件代码要重新打开客户端。
 
-## Quick start
-
-1. Open **Settings → Plugins → Instruction Files & Profiles**.
-2. Select the workspace and enable the master workspace-prompt option (off by default).
-3. Add only the Markdown files you intend to use, then enable each corresponding section.
-4. Optionally create a custom agent profile with its own **new-session** model/permission defaults.
-
-Example workspace root:
+## 工作区结构示例
 
 ```text
 workspace/
-  IDENTITY.md
-  SOUL.md
-  AGENTS.md
-  TOOLS.md
-  USER.md
-  MEMORY.md
+  IDENTITY.md    # 身份与职责
+  SOUL.md        # 风格、原则和表达习惯
+  AGENTS.md      # Agent 工作约定
+  TOOLS.md       # 工具使用说明
+  USER.md        # 用户协作偏好
+  MEMORY.md      # 人工维护的长期记忆
 ```
 
-`IDENTITY.md` controls identity; `SOUL.md` holds behavior/style preferences. `MEMORY.md` is sensitive: verified owner DMs and durably bound Feishu/Discord groups and threads may load the same workspace memory. Other private DMs remain isolated, and group members can potentially obtain memory content in bot replies. Managed facts are de-duplicated with Dream's automatic recall. Changing files does not retroactively rewrite a running model request.
+工作区文件由用户自行创建和维护。文件按字面加载，`{{...}}` 不执行变量替换。未开启的区块不额外注入；关闭总开关则使用官方默认身份和指令体系。
 
-## Notes and tests
+## 会话边界和安全
 
-Changing a default affects new sessions, **not existing conversations**. Disabled sections fall back to native DSH behavior. The plugin does not create user instruction files or evaluate template expressions.
+- 默认模型与权限只影响匹配角色后续创建的新会话，不覆盖正在进行的会话。
+- `MEMORY.md` 涉及私人数据；已核验的主人私聊，以及有 Channel Core 持久绑定来源的飞书 / Discord 群聊、帖子会话可以读取同工作区记忆。其他人的私聊仍隔离；群成员可能通过机器人回复获取记忆，请控制允许机器人接入的群。
+- Dream 已发布的受管事实通过相关事实召回；避免再把整份记忆重复塞进系统提示词。
+- 用户删除角色不会删除原始工作区文件、技能或会话历史。
 
-Run `npm test` for standalone prompt/memory-filter checks. Config template: [config.example.json](config.example.json).
+## 测试
 
-MIT licensed. See [LICENSE](LICENSE).
+`npm test` 用于验证提示词与记忆过滤逻辑，角色/预设 UI 仍建议实际检查。配置模板：[config.example.json](config.example.json)。
 
-## Optional plugin diagnostics
-
-The plugin optionally emits privacy-restricted operation and failure metadata to dsh-plugin-diagnostics. Diagnostics contain event type, status, fixed error code and elapsed time; conversation content and credentials are not logged. The diagnostics plugin is optional and does not change the host requirements.
+相关：[Dream 与长期记忆](https://github.com/Kerberos255/dsh-memory-dreaming) · [Channel Core](https://github.com/Kerberos255/dsh-channel-core)。许可证：[MIT](LICENSE)。
